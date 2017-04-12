@@ -179,7 +179,6 @@ func init() {
 }
 
 // Exists tests that a file exists.
-// TODO This probably belongs in some more general utils package.
 func Exists(name string) (bool, error) {
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {

@@ -97,13 +97,15 @@ func ValidNameserver(nameserver string) error {
 // validIPAddr checks that ipAddr looks like an IP address.
 func validIPAddr(ipAddr string) error {
 	if addr := net.ParseIP(ipAddr); addr == nil {
-		fmt.Printf("%s is not a valid IP address\n", ipAddr)
-		return errors.New("not a valid IP address")
+		return errors.New(
+			fmt.Sprintf("%s is not a valid IP address\n", ipAddr),
+		)
 	}
 	return nil
 }
 
-func createMachines(config Config) {
+// Create creates the virtual machines from the config.
+func Create(config Config) error {
 	c := make(chan error, len(config.IPAddrs))
 	for _, ipAddr := range config.IPAddrs {
 		m := machine{
@@ -128,12 +130,7 @@ func createMachines(config Config) {
 			c <- m.createMachine()
 		}()
 	}
-	for i := 0; i < len(config.IPAddrs); i++ {
-		err := <-c
-		if err != nil {
-			log.Print(err)
-		}
-	}
+	return errChan("creating machines", c)
 }
 
 // createPreseed writes out the Debian preseed.cfg file for the machine.
@@ -201,7 +198,8 @@ func (m *machine) createMachine() error {
 	}
 
 	cmd := exec.Command(
-		"virt-install", "--connect", "qemu:///system",
+		"/usr/bin/virt-install",
+		"--connect", "qemu:///system",
 		"--virt-type", "kvm",
 		"--name", m.Hostname,
 		"--cpu", "host-model-only",
@@ -219,15 +217,63 @@ func (m *machine) createMachine() error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		log.Print(errors.New(stderr.String()))
-		return err
+		return errors.New(stderr.String())
 	}
-	log.Printf("creating machine '%s'\n", m.Hostname)
-
+	log.Printf("creating machine %q\n", m.Hostname)
 	return nil
 }
 
-// Create creates the virtual machines from the config.
-func Create(config Config) {
-	createMachines(config)
+// Delete removes virtual machines and their storage.
+// It takes a slice of machines, which can be either IP addresses, to
+// be consistent with Create, or VM names.
+func Delete(machines []string) error {
+	c := make(chan error, len(machines))
+	for _, machine := range machines {
+		// TODO Is there any reason to check this looks like an
+		// IP addr first and only replace on ones that do?
+		name := strings.Replace(machine, ".", "-", -1)
+		go func() {
+			c <- deleteMachine(name)
+		}()
+	}
+	return errChan("deleting machines", c)
+}
+
+// deleteMachine deletes individual virtual machines.
+// TODO Use libvirt-go instead of shelling out.
+func deleteMachine(name string) error {
+	cmd := exec.Command(
+		"/usr/bin/virsh", "undefine", name,
+		"--storage", "vda",
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return errors.New(stderr.String())
+	}
+	log.Printf("deleted machine %q\n", name)
+	return nil
+}
+
+// errChan returns errors received on an errors channel as a single
+// error, or nil if no errors were received.
+// desc is a short prefix to describe the errors' context in the new
+// error, for example, "creating machine".
+func errChan(desc string, c chan error) error {
+	var errs []string
+	// TODO There is an assumption here that the buffer is full.
+	for i := 0; i < cap(c); i++ {
+		err := <-c
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return errors.New(fmt.Sprintf(
+			"Errors %s:\n%s",
+			desc,
+			strings.Join(errs, ""),
+		))
+	}
+	return nil
 }
