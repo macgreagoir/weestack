@@ -1,12 +1,15 @@
-// Host configures the machine to host the WeeStack cloud.
+// Hostmachine configures the machine to host the WeeStack cloud.
 package hostmachine
 
 import (
 	"bytes"
 	"errors"
 	"log"
+	"os"
 	"os/exec"
 	"os/user"
+
+	"github.com/macgreagoir/weestack/virtualmachines"
 )
 
 func Root() error {
@@ -36,6 +39,12 @@ func InstallVirt() error {
 	if err := cmd.Run(); err != nil {
 		log.Print(stdout.String())
 		return errors.New(stderr.String())
+	}
+	if err := os.MkdirAll(virtualmachines.LibvirtDir, virtualmachines.ModeRWX); err != nil {
+		return err
+	}
+	if err := virtualmachines.Chown(virtualmachines.LibvirtDir, "libvirt-qemu"); err != nil {
+		return err
 	}
 	return nil
 }

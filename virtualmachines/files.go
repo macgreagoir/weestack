@@ -11,14 +11,14 @@ import (
 const (
 	// TODO This is a wee bit open, but libvirt seems to need it :-/
 	ModeRW  os.FileMode = 0664
-	ModeRWX os.FileMode = 0750
+	ModeRWX os.FileMode = 0770
 )
 
 var (
 	LocalDir = filepath.Join(os.Getenv("HOME"), ".local", "share", "weestack")
 	// TODO What's the point of using Join here if it doesn't know an
 	// OS-independent 'root' dir?
-	LibvirtDir = filepath.Join("/", "var", "lib", "libvirt")
+	LibvirtDir = filepath.Join("/", "var", "lib", "libvirt", "weestack")
 )
 
 var preseedCfg = `
@@ -142,20 +142,14 @@ type DisksConfig struct {
 	ext string
 }
 
-// Dir gets and/or sets the Disks parent directory. If the call to mkdir fails,
-// the dir field will be left with its zero value.
+// Dir gets and/or sets the Disks parent directory.
 func (d *DisksConfig) Dir() (string, error) {
-	if d.dir != "" {
-		return d.dir, nil
+	if d.dir == "" {
+		if _, err := os.Stat(LibvirtDir); err != nil {
+			return "", err
+		}
+		d.dir = LibvirtDir
 	}
-	dir := filepath.Join(LibvirtDir, "weestack")
-	if err := os.MkdirAll(dir, ModeRWX); err != nil {
-		return "", err
-	}
-	if err := Chown(dir, "libvirt-qemu"); err != nil {
-		return "", err
-	}
-	d.dir = dir
 	return d.dir, nil
 }
 
@@ -165,7 +159,7 @@ func (d *DisksConfig) Path(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, name), err
+	return filepath.Join(dir, name), nil
 }
 
 var Disks DisksConfig

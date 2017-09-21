@@ -193,9 +193,6 @@ func (m *machine) createMachine() error {
 			return errors.New(stderr.String())
 		}
 	}
-	if err := Chown(disk, "libvirt-qemu"); err != nil {
-		return err
-	}
 
 	cmd := exec.Command(
 		"/usr/bin/virt-install",

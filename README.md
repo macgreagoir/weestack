@@ -4,7 +4,7 @@ WeeStack
 A trivial 'local cloud' manager, when you don't need a big stack.
 
 ```
-sudo weestack create \
+weestack create \
     --password s3cr3t \
     --ssh-keys-url https://example.com/me/sshkeys \
     --gateway 192.168.122.1 \
@@ -14,6 +14,10 @@ sudo weestack create \
 
 What It Does
 ------------
+
+`sudo weestack init`
+
+ * Installs the requirements
 
 `weestack create`
 
@@ -30,7 +34,6 @@ What It Does
 What It Does Not Do (Yet)
 -------------------------
 
- * Manage machines on non-local hypervisors
  * Manage libvirt networks
  * Routable networking or floating IP addresses
  * IPv6
